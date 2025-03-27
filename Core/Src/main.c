@@ -55,7 +55,7 @@ float temp1=0,temp3=0;
 int ret=0,delta1=0,delta3=0,cnt1=0,cnt3=0;
 int speed1=0,angle1=0,target_angle1=0,target_speed1=0,pwm_out1=0,sum_angle1=0;
 int speed3=0,angle3=0,target_angle3=0,target_speed3=0,pwm_out3=0,sum_angle3=0;
-int PID_mode=3;
+int PID_mode=1,speed_mode=3;
 const fp32 PID_speed1[3]={100,0,10};
 const fp32 PID_position1[3]={100,0,5};
 const fp32 PID_speed3[3]={100,0,10};
@@ -84,119 +84,68 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		cnt1 = __HAL_TIM_GET_COUNTER(&htim2);
 		cnt3 = __HAL_TIM_GET_COUNTER(&htim3);	
 		
-		if(cnt1>=30000)
-		{
-			cnt1=cnt1-65535;
-		}
+		if(cnt1>=30000)	{cnt1=cnt1-65535;}
 		temp1 = ( cnt1 * 360 * 100 ) / (4 * 13 * 34 ) ;
 		speed1 = (int)temp1;
 		sum_angle1 = sum_angle1 + (int)temp1*0.01;	
-	
 				
-		if(cnt3>=30000)
-		{
-			cnt3=cnt3-65535;
-		}
+		if(cnt3>=30000)	{cnt3=cnt3-65535;}
 		temp3 = ( cnt3 * 360 * 100 ) / (4 * 13 * 34 ) ;
 		speed3 = (int)temp3;
 		sum_angle3 = sum_angle3 + (int)temp3*0.01;
 	
-		if(PID_mode == 3)
+		if(delta1<=1 && delta1>=-1)
 		{
-			target_speed1=0;target_speed3=0;
-			sum_angle1=0;sum_angle3=0;
-			target_angle1=0;target_angle3=0;
-			HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_RESET);HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_RESET);
-			HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_RESET);HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_RESET);
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,0);
+		}
+		else
+		{	
+			target_speed1=PID_calc(&Position1,0,delta1);
+			pwm_out1=PID_calc(&Speed1,speed1,target_speed1);
+			if(pwm_out1>0)
+			{
+				HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_RESET);
+			}
+			else
+			{
+				HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_SET);
+				pwm_out1=-pwm_out1;
+			}
+			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,pwm_out1);
+		}
+		
+		if(delta3<=2 && delta3>=-2)
+		{
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,0);
 		}
-		else if(PID_mode == 2)
+		else
 		{
-			if(delta1<=2 && delta1>=-2)
+			target_speed3=PID_calc(&Position3,0,delta3);
+			pwm_out3=PID_calc(&Speed3,speed3,target_speed3);
+			if(pwm_out3>0)
 			{
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,0);
-			}
-			else
-			{	
-				target_speed1=PID_calc(&Position1,sum_angle1,target_angle1);
-				pwm_out1=PID_calc(&Speed1,speed1,target_speed1);
-				if(pwm_out1>0)
-				{
-					HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_RESET);
-				}
-				else
-				{
-					HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_RESET);
-					HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_SET);
-					pwm_out1=-pwm_out1;
-				}
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,pwm_out1);
-			}
-			
-			if(delta3<=2 && delta3>=-2)
+				HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_RESET);
+			}else
 			{
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,0);
+				HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_SET);
+				pwm_out3=-pwm_out3;
 			}
-			else
-			{
-				target_speed3=PID_calc(&Position3,sum_angle3,target_angle3);
-				pwm_out3=PID_calc(&Speed3,speed3,target_speed3);
-				if(pwm_out3>0)
-				{
-					HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_RESET);
-				}else
-				{
-					HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_RESET);
-					HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_SET);
-					pwm_out3=-pwm_out3;
-				}
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,pwm_out3);
-			}
-		}	
-		else if(PID_mode == 1)
-		{
-				sum_angle1=0;sum_angle3=0;
-				target_angle1=0;target_angle3=0;
-			
-				pwm_out1=PID_calc(&Speed1,speed1,target_speed1);
-				if(pwm_out1>0)
-				{
-					HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_RESET);
-				}else
-				{
-					HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_RESET);
-					HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_SET);
-					pwm_out1=-pwm_out1;
-				}
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,pwm_out1);
-		
-				pwm_out3=PID_calc(&Speed3,speed3,target_speed3);
-				if(pwm_out3>0)
-				{
-					HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_SET);
-					HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_RESET);
-				}else
-				{
-					HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_RESET);
-					HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_SET);
-					pwm_out3=-pwm_out3;
-				}
-				__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,pwm_out3);
+			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,pwm_out3);
 		}
+	
+	__HAL_TIM_SetCounter(&htim2,0);
+	__HAL_TIM_SetCounter(&htim3,0);
 		
-		__HAL_TIM_SetCounter(&htim2,0);
-		__HAL_TIM_SetCounter(&htim3,0);
-		
-		if(speed3!=0)
-		{
-			char buffer[64];
-			sprintf(buffer, "%d,%d,%d\n",target_speed3,speed3,pwm_out3);
-			HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);	
-		}
+//		if(speed3!=0)
+//		{
+//			char buffer[64];
+//			sprintf(buffer, "%d,%d,%d\n",target_speed3,speed3,pwm_out3);
+//			HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);	
+//		}
 		
 	}
 	
@@ -276,46 +225,54 @@ int main(void)
 		MPU6050_DMP_Get_Date(&pitch,&roll,&yaw);
 		if(yaw<0) {yaw=yaw+360.0f;}
 		
-		delta1=target_angle1-sum_angle1;
-		delta3=target_angle3-sum_angle3;
-		
 		if(rx_flag1)
 		{
 			rx_flag1=0;
 			
-			if(rx_data1 == 0x00){PID_mode=3;}//停止
+			if(rx_data1 == 0x00)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//停止
 			
-			else if(rx_data1 == 0x01)	{PID_mode=1;target_speed1=284;target_speed3=-284;}//定速前进
-			else if(rx_data1 == 0xF1)	{PID_mode=2;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移前进
+			else if(rx_data1 == 0x01)	{PID_mode=0;target_speed1=284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=1;}//定速前进
+			else if(rx_data1 == 0xF1)	{PID_mode=1;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移前进
 			
-			else if(rx_data1 == 0x02)	{PID_mode=1;target_speed1=-284;target_speed3=284;}//定速后退
-			else if(rx_data1 == 0xF2)	{PID_mode=2;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移后退
+			else if(rx_data1 == 0x02)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速后退
+			else if(rx_data1 == 0xF2)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移后退
 			
-			else if(rx_data1 == 0x03)	{PID_mode=1;target_speed1=284;target_speed3=-284;}//定速左移
-			else if(rx_data1 == 0xF3)	{PID_mode=2;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移左移
+			else if(rx_data1 == 0x03)	{PID_mode=0;target_speed1=284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=1;}//定速左移
+			else if(rx_data1 == 0xF3)	{PID_mode=1;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移左移
 			
-			else if(rx_data1 == 0x04)	{PID_mode=1;target_speed1=-284;target_speed3=284;}//定速右移
-			else if(rx_data1 == 0xF4)	{PID_mode=2;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右移
+			else if(rx_data1 == 0x04)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速右移
+			else if(rx_data1 == 0xF4)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右移
 			
-			else if(rx_data1 == 0x05)	{PID_mode=2;target_angle1=720;target_angle3=720;sum_angle1=0;sum_angle3=0;}//左转弯
-			else if(rx_data1 == 0x06)	{PID_mode=2;target_angle1=-720;target_angle3=-720;sum_angle1=0;sum_angle3=0;}//右转弯
+			else if(rx_data1 == 0x05)	{PID_mode=1;target_angle1=720;target_angle3=720;sum_angle1=0;sum_angle3=0;}//左转弯
+			else if(rx_data1 == 0x06)	{PID_mode=1;target_angle1=-720;target_angle3=-720;sum_angle1=0;sum_angle3=0;}//右转弯
 			
-			else if(rx_data1 == 0x07)	{PID_mode=1;target_speed1=284;target_speed3=-284;}//定速左前
-			else if(rx_data1 == 0xF7)	{PID_mode=2;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移左前
+			else if(rx_data1 == 0x07)	{PID_mode=0;target_speed1=284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=1;}//定速左前
+			else if(rx_data1 == 0xF7)	{PID_mode=1;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移左前
 			
-			else if(rx_data1 == 0x08)	{PID_mode=3;}//定速左后
-			else if(rx_data1 == 0xF8)	{PID_mode=3;}//定位移左前
+			else if(rx_data1 == 0x08)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定速左后
+			else if(rx_data1 == 0xF8)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定位移左后
 			
-			else if(rx_data1 == 0x09)	{PID_mode=3;}//定速右前
-			else if(rx_data1 == 0xF9)	{PID_mode=3;}//定位移右前
+			else if(rx_data1 == 0x09)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定速右前
+			else if(rx_data1 == 0xF9)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定位移右前
 			
-			else if(rx_data1 == 0x10)	{PID_mode=1;target_speed1=-284;target_speed3=284;}//定速右后
-			else if(rx_data1 == 0xF0)	{PID_mode=2;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右后
+			else if(rx_data1 == 0x10)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速右后
+			else if(rx_data1 == 0xF0)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右后
 	
 			HAL_UART_Transmit(&huart1, (uint8_t *)&rx_data1, 1, 100);
 			HAL_UART_Transmit(&huart3, (uint8_t *)&rx_data1, 1, 100);
 		}
 			
+		if(PID_mode)
+		{
+			delta1=target_angle1-sum_angle1;
+			delta3=target_angle3-sum_angle3;
+		}
+		else
+		{
+			if(speed_mode == 1)	{delta1=90;delta3=-90;}
+			if(speed_mode == 2)	{delta1=-90;delta3=90;}
+			if(speed_mode == 3)	{delta1=0;delta3=0;}
+		}
 		
   }
   /* USER CODE END 3 */
