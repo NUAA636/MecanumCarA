@@ -21,6 +21,7 @@
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_exti.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_dma_ex.h
+4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_can.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_cortex.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_flash_ex.h
@@ -29,6 +30,7 @@
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 4.1mecanumcara\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+4.1mecanumcara\main.o: ../Core/Inc/can.h
 4.1mecanumcara\main.o: ../Core/Inc/i2c.h
 4.1mecanumcara\main.o: ../Core/Inc/tim.h
 4.1mecanumcara\main.o: ../Core/Inc/usart.h

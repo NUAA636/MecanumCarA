@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "can.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -55,7 +56,7 @@ float temp1=0,temp3=0;
 int ret=0,delta1=0,delta3=0,cnt1=0,cnt3=0;
 int speed1=0,angle1=0,target_angle1=0,target_speed1=0,pwm_out1=0,sum_angle1=0;
 int speed3=0,angle3=0,target_angle3=0,target_speed3=0,pwm_out3=0,sum_angle3=0;
-int PID_mode=1,speed_mode=3;
+int PID_mode=1,speed_mode=3,yaw_flag=0;
 const fp32 PID_speed1[3]={100,0,10};
 const fp32 PID_position1[3]={100,0,5};
 const fp32 PID_speed3[3]={100,0,10};
@@ -66,6 +67,9 @@ volatile uint8_t rx_flag1 = 0;
 volatile uint8_t rx_data1;
 volatile uint8_t rx_flag3 = 0;
 volatile uint8_t rx_data3;
+static CAN_TxHeaderTypeDef TxHeader;
+uint8_t TxData[1] = {0x00};
+uint32_t TxMailbox;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -140,13 +144,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	__HAL_TIM_SetCounter(&htim2,0);
 	__HAL_TIM_SetCounter(&htim3,0);
 		
-//		if(speed3!=0)
+//		if(speed1!=0)
 //		{
 //			char buffer[64];
-//			sprintf(buffer, "%d,%d,%d\n",target_speed3,speed3,pwm_out3);
+//			sprintf(buffer, "%d,%d,%d\n",target_speed1,speed1,pwm_out1);
 //			HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);	
 //		}
-		
+//		
 	}
 	
 }
@@ -197,6 +201,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_USART2_UART_Init();
+  MX_CAN_Init();
   /* USER CODE BEGIN 2 */
 	do{
 			ret = MPU6050_DMP_init();
@@ -213,6 +218,27 @@ int main(void)
 	PID_init(&Position3,PID_POSITION,PID_position3,500.0f,1000.0f);
   PID_init(&Speed3,PID_POSITION,PID_speed3,20.0f,1000.0f);
 	HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_data1, 1);
+		
+	CAN_FilterTypeDef filter;
+  filter.FilterIdHigh = 0x0000;
+  filter.FilterIdLow = 0x0000;
+  filter.FilterMaskIdHigh = 0x0000;
+  filter.FilterMaskIdLow = 0x0000;
+  filter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+  filter.FilterBank = 0;
+  filter.FilterMode = CAN_FILTERMODE_IDMASK;
+  filter.FilterScale = CAN_FILTERSCALE_32BIT;
+  filter.FilterActivation = ENABLE;
+  filter.SlaveStartFilterBank = 14;
+  HAL_CAN_ConfigFilter(&hcan, &filter);
+	
+	HAL_CAN_Start(&hcan);
+	HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+	TxHeader.StdId = 0x123;    // 标准ID
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.DLC = 1;         // 数据长度1字节
+  TxHeader.TransmitGlobalTime = DISABLE;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -223,13 +249,32 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		MPU6050_DMP_Get_Date(&pitch,&roll,&yaw);
-		if(yaw<0) {yaw=yaw+360.0f;}
+		if(yaw_flag)
+		{		
+			if(yaw>=-2.0 && yaw<=2.0)
+			{
+				yaw_flag=0;
+				PID_mode=0;speed_mode=3;
+				target_angle1=0;target_angle3=0;
+				target_speed1=0;target_speed3=0;
+				sum_angle1=0;sum_angle3=0;
+				HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+			}
+		}
 		
 		if(rx_flag1)
 		{
 			rx_flag1=0;
 			
-			if(rx_data1 == 0x00)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//停止
+			if(rx_data1 == 0xFF)
+			{
+				yaw_flag=1;
+				if(yaw>=2.0)		{rx_data1=0x05;}
+				else if(yaw<=-2.0)		{rx_data1=0x06;}
+				else {rx_data1=0x00;}
+			}
+			
+			if(rx_data1 == 0x00)		{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//停止
 			
 			else if(rx_data1 == 0x01)	{PID_mode=0;target_speed1=284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=1;}//定速前进
 			else if(rx_data1 == 0xF1)	{PID_mode=1;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移前进
@@ -243,8 +288,11 @@ int main(void)
 			else if(rx_data1 == 0x04)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速右移
 			else if(rx_data1 == 0xF4)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右移
 			
-			else if(rx_data1 == 0x05)	{PID_mode=1;target_angle1=720;target_angle3=720;sum_angle1=0;sum_angle3=0;}//左转弯
-			else if(rx_data1 == 0x06)	{PID_mode=1;target_angle1=-720;target_angle3=-720;sum_angle1=0;sum_angle3=0;}//右转弯
+			else if(rx_data1 == 0x05)	{PID_mode=0;target_speed1=284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=4;}//定速左转弯
+			else if(rx_data1 == 0xF5)	{PID_mode=1;target_angle1=720;target_angle3=720;sum_angle1=0;sum_angle3=0;}//定位移左转弯
+			
+			else if(rx_data1 == 0x06)	{PID_mode=0;target_speed1=-284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=5;}//定速右转弯
+			else if(rx_data1 == 0xF6)	{PID_mode=1;target_angle1=-720;target_angle3=-720;sum_angle1=0;sum_angle3=0;}//定位移右转弯
 			
 			else if(rx_data1 == 0x07)	{PID_mode=0;target_speed1=284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=1;}//定速左前
 			else if(rx_data1 == 0xF7)	{PID_mode=1;target_angle1=1440;target_angle3=-1440;sum_angle1=0;sum_angle3=0;}//定位移左前
@@ -255,11 +303,18 @@ int main(void)
 			else if(rx_data1 == 0x09)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定速右前
 			else if(rx_data1 == 0xF9)	{PID_mode=0;target_angle1=0;target_angle3=0;target_speed1=0;target_speed3=0;sum_angle1=0;sum_angle3=0;speed_mode=3;}//定位移右前
 			
-			else if(rx_data1 == 0x10)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速右后
-			else if(rx_data1 == 0xF0)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右后
+			else if(rx_data1 == 0x0A)	{PID_mode=0;target_speed1=-284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=2;}//定速右后
+			else if(rx_data1 == 0xFA)	{PID_mode=1;target_angle1=-1440;target_angle3=1440;sum_angle1=0;sum_angle3=0;}//定位移右后
 	
-			HAL_UART_Transmit(&huart1, (uint8_t *)&rx_data1, 1, 100);
-			HAL_UART_Transmit(&huart3, (uint8_t *)&rx_data1, 1, 100);
+//			else if(rx_data1 == 0xFF)
+//			{
+//				yaw_flag=1;
+//				if(yaw>=2.0)		{PID_mode=0;target_speed1=284;target_speed3=284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=4;}
+//				else if(yaw<=-2.0)		{PID_mode=0;target_speed1=-284;target_speed3=-284;target_angle1=0;target_angle3=0;sum_angle1=0;sum_angle3=0;speed_mode=5;}
+//			}
+			
+			HAL_UART_Transmit(&huart1, (uint8_t *)&rx_data1, 1, HAL_MAX_DELAY);
+			HAL_UART_Transmit(&huart3, (uint8_t *)&rx_data1, 1, HAL_MAX_DELAY);
 		}
 			
 		if(PID_mode)
@@ -270,8 +325,10 @@ int main(void)
 		else
 		{
 			if(speed_mode == 1)	{delta1=90;delta3=-90;}
-			if(speed_mode == 2)	{delta1=-90;delta3=90;}
-			if(speed_mode == 3)	{delta1=0;delta3=0;}
+			else if(speed_mode == 2)	{delta1=-90;delta3=90;}
+			else if(speed_mode == 3)	{delta1=0;delta3=0;}
+			else if(speed_mode == 4)	{delta1=90;delta3=90;}
+			else if(speed_mode == 5)	{delta1=-90;delta3=-90;}
 		}
 		
   }
