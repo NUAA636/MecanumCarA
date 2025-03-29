@@ -98,7 +98,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		speed3 = (int)temp3;
 		sum_angle3 = sum_angle3 + (int)temp3*0.01;
 	
-		if(delta1<=10 && delta1>=-10)
+		if(delta1<=20 && delta1>=-20)
 		{
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,0);
 		}
@@ -115,12 +115,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			{
 				HAL_GPIO_WritePin(GPIOA, AIN1_Pin, GPIO_PIN_RESET);
 				HAL_GPIO_WritePin(GPIOA, AIN2_Pin, GPIO_PIN_SET);
-				pwm_out1=-pwm_out1;
+				pwm_out1=(-1)*pwm_out1;
 			}
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,pwm_out1);
 		}
 		
-		if(delta3<=10 && delta3>=-10)
+		if(delta3<=20 && delta3>=-20)
 		{
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,0);
 		}
@@ -136,7 +136,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			{
 				HAL_GPIO_WritePin(GPIOA, CIN1_Pin, GPIO_PIN_RESET);
 				HAL_GPIO_WritePin(GPIOA, CIN2_Pin, GPIO_PIN_SET);
-				pwm_out3=-pwm_out3;
+				pwm_out3=(-1)*pwm_out3;
 			}
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,pwm_out3);
 		}
@@ -147,7 +147,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		if(speed3!=0)
 		{
 			char buffer[64];
-			sprintf(buffer, "%d,%d,%d\n",target_speed3,speed3,-pwm_out3);
+			sprintf(buffer, "%d,%d,%d\n",target_speed3,speed3,pwm_out3);
 			HAL_UART_Transmit(&huart2, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);	
 		}
 		
