@@ -98,7 +98,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		speed3 = (int)temp3;
 		sum_angle3 = sum_angle3 + (int)temp3*0.01;
 	
-		if(delta1<=20 && delta1>=-20)
+		if(delta1<=30 && delta1>=-30)
 		{
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,0);
 		}
@@ -120,7 +120,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_1,pwm_out1);
 		}
 		
-		if(delta3<=20 && delta3>=-20)
+		if(delta3<=30 && delta3>=-30)
 		{
 			__HAL_TIM_SetCompare(&htim1,TIM_CHANNEL_2,0);
 		}
